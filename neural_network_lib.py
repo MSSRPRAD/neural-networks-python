@@ -10,7 +10,7 @@ Original file is located at
 import numpy as np
 import pandas as pd
 import keras as keras
-
+print("-----------------importing data-----------------")
 from keras.datasets import mnist
 (train_X, train_y), (test_X, test_y) = mnist.load_data()
 
@@ -30,7 +30,7 @@ x_train = np.array(train)
 y_train = train_y
 
 y_train = np.reshape(train_y, (len(train_y)))
-
+print("-----------------preprocessing y_train-----------------")
 # Preprocessing
 for i in range(len(x_train)):
   for j in range(len(x_train[i][0])):
@@ -59,21 +59,35 @@ x_train.shape
 
 y_train.shape
 
-"""Now we will make a helper class for the difference activation functions"""
+temp = np.zeros((60000,1,10))
+for i in range(60000):
+  for j in range(10):
+    temp[i][0][j] = y_train[i][j]
+y_train = temp
 
+y_train.shape
+
+"""Now we will make a helper class for the difference activation functions"""
+print("-----------------making classes-----------------")
 class Activation:
-  def sigmoid(x):
-    return 1/(1+np.exp(-x))
-  def tanh(x):
-    return np.tanh(x)
-  def relu(x):
-    return np.maximum(x,0)
-  def sigmoid_der(x):
+  # x is (1,size)
+  def sigmoid(self,x):
+    for i in range(x.shape[1]):
+      x[0][i] = 1/(1+np.exp(-x[0][i]))
+    return x
+  # def tanh(x):
+  #   return np.tanh(x)
+  # def relu(x):
+  #   return np.maximum(x,0)
+  def sigmoid_der(self, x):
+    for i in range(x.shape[1]):
+      x[0][i] = x[0][i]*(1-x[0][i])
+
     return x*(1-x)
-  def tanh_der(x):
-    return 1-np.power(np.tanh(x), 2)
-  def relu_der(x):
-    return np.where(x >= 0, 1, 0)
+  # def tanh_der(x):
+  #   return 1-np.power(np.tanh(x), 2)
+  # def relu_der(x):
+  #   return np.where(x >= 0, 1, 0)
 
 """Helper metrics class"""
 
@@ -83,10 +97,23 @@ class Metrics:
     self.y_actual = y_test
     self.len = len(y_pred)
 
-  def accuracy(self):
+  def equal(self):
     # Count the number of matching elements
-    equals = np.sum(np.array_equal(self.y_pred, self.y_actual))
-    return equals/self.len
+    max_index = -1
+    max = 0
+    y_modified = np.zeros_like(self.y_actual)
+    for i in range(self.y_pred.shape[1]):
+      if max<self.y_pred[0][i]:
+        max = self.y_pred[0][i]
+        max_index = i
+    for i in range(self.y_pred.shape[1]):
+      if i!=max_index:
+        y_modified[0][i] = 0
+      else:
+        y_modified[0][i] = 1
+    return np.array_equal(y_modified, self.y_actual)
+
+
 
   def mean_square_error(self):
     return np.mean(np.power(self.y_pred - self.y_actual, 2))
@@ -94,41 +121,41 @@ class Metrics:
 """# Making the layers for the library
 
 It's properties are:
- 1. It takes an input from a previous layer 
+ 1. It takes an input from a previous layer
  2. It gives and output to the next layer
  3. It computes the output through forward propogation
  4. It updates it's parameters through back propogation
 """
 
-class Layer:
-  def __init__(self):
-    self.input = None
-    self.output = None
-  
-  def foward_propogate(self, input):
-    raise NotImplemenetedError
-  
-  def backward_propogate(self, output_error, lr):
-    raise NotImplementedError
+# class Layer:
+#   def __init__(self):
+#     self.input = None
+#     self.output = None
+
+#   def foward_propogate(self, input):
+#     raise NotImplemenetedError
+
+#   def backward_propogate(self, output_error, lr):
+#     raise NotImplementedError
 
 """Let us define a Dense Layer (where every neuron is connected to every other neuron in the next layer) which is a subclass of our Layer class."""
 
-class DenseLayer(Layer):
-  # input_size = no of input neurons
-  # output_size = no of output neurons
+class DenseLayer():
+  # input_size = no of neurons in layer
+  # output_size = no of neurons in next layer
   def __init__(self, input_size, output_size, activation):
     # weights is an array of input_size rows and output_size columns
     # i-th row j-th column is the weight connecting i-th output neuron to j-th input neuron
-    self.weights = np.zeros(input_size, output_size)
+    self.weights = np.zeros((input_size, output_size))
     # Apart from these there must be a bias neuron that is connected to all the output neurons
-    self.bias = np.zeros(1,output_size)
+    self.bias = np.zeros((1,output_size))
     # Activation Function for this layer
     self.activation = activation
     # Input values, activation (weighted avg of input), outputs (activation function applied on activations), errors (of each neuron)
-    self.inputs = np.zeros(1, input_size)
-    self.activations = np.zeros(1, output_size)
-    self.outputs = np.zeros(1, output_size)
-    self.input_errors = np.zeros(1, input_size)
+    self.inputs = np.zeros((1, input_size))
+    self.activations = np.zeros((1, output_size))
+    self.outputs = np.zeros((1, output_size))
+    self.input_errors = np.zeros((1, input_size))
 
   # Given the input calculate the outputs (using the weights)
   # Input is a numpy array of 1 rows and input_size columns
@@ -139,26 +166,30 @@ class DenseLayer(Layer):
     ac = Activation()
     match self.activation:
       case "relu":
-        self.output = ac.relu(self.activation)
+        self.output = ac.relu(self.activations)
       case "sigmoid":
-        self.output = ac.relu(self.activation)
+        # print(self.activations.shape)
+        self.output = ac.sigmoid(self.activations)
       case "tanh":
-        self.output = ac.relu(self.activation)
+        self.output = ac.tanh(self.activations)
     return self.output
-  
+
   # output_errors is a numpy array with 1 rows and output_size columns
+  # Because it coressponds to errors at output_size neurons
   def backward_propogate(self, output_errors, lr):
     ac = Activation()
+    # (IS,OS)x(output_size,1).T = (1,input_size)
     # backpropogate the errors
     match self.activation:
       case "relu":
-        self.input_errors = ac.relu_der(self.activation)*(np.dot(self.weights, output_errors.T)).T
+        self.input_errors = ac.relu_der(self.inputs)*(np.dot(self.weights, output_errors.T)).T
       case "sigmoid":
-        self.input_errors = ac.sigmoid_der(self.activation)*(np.dot(self.weights, output_errors.T)).T
+        # (1,IS)*[(1S,OS)x(OS,1)].T
+        self.input_errors = ac.sigmoid_der(self.inputs)*(np.dot(self.weights, output_errors.T)).T
       case "tanh":
-        self.input_errors = ac.tanh_der(self.activation)*(np.dot(self.weights, output_errors.T)).T
-    # Calculate the error in weights for this layer 
-    weight_errors = np.dot(self.inputs.T, self.output_errors)
+        self.input_errors = ac.tanh_der(self.inputs)*(np.dot(self.weights, output_errors.T)).T
+    # Calculate the error in weights for this layer
+    weight_errors = np.dot(self.inputs.T, output_errors)
     # Update the weights
     self.weights -= lr*weight_errors
     # Update the bias
@@ -178,33 +209,54 @@ class NeuralNetwork:
   def add(self, layer):
     self.layers.append(layer)
     return
-  
+
   # Predict Output (through forward propogation)
   def predict(self, input_data):
     y_pred = []
-    # Run the neural network over all the samples (stochastic gradient descent)
+    # Run the neural network over all the samples
     for i in range(len(input_data)):
       # Forward propogate the values
       output = input_data[i]
       for layer in self.layers:
         output = layer.forward_propogate(output)
+      # output_shape = (1,final_output_size (output_size of last layer))
       y_pred.append(output)
     return y_pred
 
   # Train the network
+  # x_train = (60,000,1,780)
+  # y_train = (60,000, 1, 10)
   def fit(self, x_train, y_train, epochs=10, lr=0.001):
     self.loss = []
     for i in range(epochs):
-      errors = 0
+      misclassifications = 0
+      print("epochs: "+str(i))
+      print("loss:" + str(self.loss))
       for j in range(len(x_train)):
+        errors = 0
         # Forward propogate the values
         output = x_train[i]
         for layer in self.layers:
           output = layer.forward_propogate(output)
+        # now we have the predicted outputs
+        # Calculate the error at the end
         errors = output - y_train[i]
         # Store the loss
         metrics = Metrics(output, y_train[i])
-        self.loss = metrics.mean_square_error()
+        self.loss.append((i,metrics.mean_square_error()))
+        if not metrics.equal(): misclassifications = misclassifications+1
+        if j%1000 == 0:
+          print("images processed:"+str(j))
+          print("last loss:"+str(self.loss[-1]))
         # Backpropogate the errors
         for layer in reversed(self.layers):
-          errors = layer.backward_propogate(errors, epochs, lr)
+          errors = layer.backward_propogate(errors, lr)
+      print("misclassifications:"+str(misclassifications))
+print("-----------------making model-----------------")
+nn = NeuralNetwork()
+dl = DenseLayer(784, 10, "sigmoid")
+nn.add(dl)
+print("-----------------training model-----------------")
+nn.fit(x_train, y_train)
+
+print(nn.loss)
