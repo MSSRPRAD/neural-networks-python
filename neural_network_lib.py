@@ -8,10 +8,8 @@ Original file is located at
 """
 
 import numpy as np
-import pandas as pd
-import keras as keras
+import keras.datasets.mnist as mnist
 print("-----------------importing data-----------------")
-from keras.datasets import mnist
 (train_X, train_y), (test_X, test_y) = mnist.load_data()
 
 train_X.shape
@@ -194,6 +192,7 @@ class DenseLayer():
     self.weights -= lr*weight_errors
     # Update the bias
     self.bias -= lr*output_errors
+    return self.input_errors
 
 """# Neural Network Class
 
@@ -231,7 +230,6 @@ class NeuralNetwork:
     for i in range(epochs):
       misclassifications = 0
       print("epochs: "+str(i))
-      print("loss:" + str(self.loss))
       for j in range(len(x_train)):
         errors = 0
         # Forward propogate the values
@@ -245,18 +243,23 @@ class NeuralNetwork:
         metrics = Metrics(output, y_train[i])
         self.loss.append((i,metrics.mean_square_error()))
         if not metrics.equal(): misclassifications = misclassifications+1
-        if j%1000 == 0:
+        if j%10000 == 0:
           print("images processed:"+str(j))
           print("last loss:"+str(self.loss[-1]))
         # Backpropogate the errors
+        # print(output)
         for layer in reversed(self.layers):
           errors = layer.backward_propogate(errors, lr)
       print("misclassifications:"+str(misclassifications))
 print("-----------------making model-----------------")
 nn = NeuralNetwork()
-dl = DenseLayer(784, 10, "sigmoid")
-nn.add(dl)
+dl1 = DenseLayer(784, 32, "sigmoid")
+dl2 = DenseLayer(32, 20, "sigmoid")
+dl3 = DenseLayer(20,10, "sigmoid")
+nn.add(dl1)
+nn.add(dl2)
+nn.add(dl3)
 print("-----------------training model-----------------")
 nn.fit(x_train, y_train)
 
-print(nn.loss)
+# print(nn.loss)
